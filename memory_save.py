@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """SessionEnd hook: transcript を解析してチャンク化し SQLite に保存する"""
 import json
-import math
 import os
 import sqlite3
 import sys
@@ -45,6 +44,92 @@ def init_db(conn):
             tokenize="trigram"
         );
     """)
+
+
+def extract_cwd_from_transcript(transcript_path):
+    """JSONLファイルの先頭付近からcwdフィールドを抽出する"""
+    try:
+        with open(transcript_path, "r", encoding="utf-8") as f:
+            for i, line in enumerate(f):
+                if i >= 20:
+                    break
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    obj = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if obj.get("type") == "system":
+                    cwd = obj.get("cwd", "")
+                    if cwd:
+                        return cwd
+    except (OSError, IOError):
+        pass
+    return None
+
+
+def backfill_unsaved_sessions():
+    """未保存のtranscriptを回収してDBに保存する"""
+    projects_dir = os.path.expanduser("~/.claude/projects/")
+    if not os.path.isdir(projects_dir):
+        return
+
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        init_db(conn)
+
+        # 保存済みsession_idの一覧を取得
+        saved_ids = set()
+        for row in conn.execute("SELECT session_id FROM sessions"):
+            saved_ids.add(row[0])
+    finally:
+        conn.close()
+
+    now = time.time()
+    deadline = now + 5.0
+
+    # projects直下のディレクトリを走査
+    for dir_name in os.listdir(projects_dir):
+        if time.time() > deadline:
+            break
+        dir_path = os.path.join(projects_dir, dir_name)
+        if not os.path.isdir(dir_path):
+            continue
+
+        for file_name in os.listdir(dir_path):
+            if time.time() > deadline:
+                break
+            if not file_name.endswith(".jsonl"):
+                continue
+            file_path = os.path.join(dir_path, file_name)
+            if not os.path.isfile(file_path):
+                continue
+
+            session_id = file_name[:-6]  # .jsonl を除去
+            if session_id in saved_ids:
+                continue
+
+            # アクティブセッション回避: mtime が直近5分以内ならスキップ
+            try:
+                mtime = os.path.getmtime(file_path)
+                if now - mtime < 300:
+                    continue
+            except OSError:
+                continue
+
+            try:
+                cwd = extract_cwd_from_transcript(file_path)
+                if not cwd:
+                    continue
+
+                pairs = parse_transcript(file_path)
+                if not pairs:
+                    continue
+
+                save_to_db(session_id, cwd, pairs)
+            except Exception:
+                continue
 
 
 def parse_transcript(transcript_path):
@@ -151,6 +236,14 @@ def save_to_db(session_id, cwd, pairs):
 
 
 def main():
+    # --backfill モード
+    if "--backfill" in sys.argv:
+        try:
+            backfill_unsaved_sessions()
+        except Exception:
+            pass
+        sys.exit(0)
+
     try:
         # stdin から JSON を読む
         input_data = json.load(sys.stdin)

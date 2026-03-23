@@ -6,6 +6,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 DB_PATH="$SCRIPT_DIR/memory.db"
 
+# 未保存セッションを回収（初回はDBも作成される）
+python3 "$SCRIPT_DIR/memory_save.py" --backfill 2>/dev/null || true
+
 # DB が存在しない場合は何もしない（初回セッション）
 if [ ! -f "$DB_PATH" ]; then
     exit 0
