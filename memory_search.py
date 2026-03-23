@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""FTS5検索 + 時間減衰スコアリング。結果をMarkdown形式で stdout に出力する"""
+"""FTS5検索 + 時間減衰スコアリング。結果をMarkdown形式で stdout に出力する
+Version: 20260323B
+"""
 import argparse
 import math
 import os

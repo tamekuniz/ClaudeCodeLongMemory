@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""SessionEnd hook: transcript を解析してチャンク化し SQLite に保存する"""
+"""SessionEnd hook: transcript を解析してチャンク化し SQLite に保存する
+Version: 20260323B
+"""
 import json
 import os
 import sqlite3

@@ -1,6 +1,7 @@
 #!/bin/bash
 # SessionStart hook: 関連する過去の記憶を検索してstdoutに出力する
 # stdout は Claude のコンテキストとして自動注入される
+# Version: 20260323B
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
